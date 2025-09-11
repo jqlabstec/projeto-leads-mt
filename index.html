@@ -6,11 +6,12 @@
     <title>Painel de Visitas de Consultores</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" xintegrity="sha512-xodxRnmjLFM8t+b3d3x8l8h/X3f3x444d4239e23c7b8d8e574d2a1d2f8e12d4d8c7c9c0f99d9b68c9c9" crossorigin="" />
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
         }
         .modal-overlay {
             background-color: rgba(0, 0, 0, 0.5);
@@ -19,11 +20,17 @@
             max-height: 90vh;
             overflow-y: auto;
         }
+        /* Definição do tamanho do mapa */
+        #map {
+            height: 400px;
+            width: 100%;
+            border-radius: 12px;
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen p-4 md:p-8">
 
-    <div class="max-w-4xl mx-auto bg-white p-6 md:p-8 rounded-2xl shadow-xl">
+    <div class="max-w-4xl mx-auto bg-white text-gray-900 p-6 md:p-8 rounded-2xl shadow-xl">
         <header class="text-center mb-8">
             <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-2">Painel de Visitas Comerciais</h1>
             <p class="text-gray-600 text-lg">Selecione o seu nome para visualizar os pontos de visita designados.</p>
@@ -32,40 +39,67 @@
         <!-- Dropdown para seleção do consultor -->
         <div class="mb-6">
             <label for="consultorSelect" class="block text-gray-700 font-medium mb-2">Consultor Responsável:</label>
-            <select id="consultorSelect" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300 ease-in-out">
+            <select id="consultorSelect" class="w-full p-3 border border-gray-300 bg-white text-gray-900 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 transition duration-300 ease-in-out">
                 <option value="" disabled selected>-- Selecione um consultor --</option>
             </select>
+        </div>
+        
+        <!-- Novo botão para abrir o mapa -->
+        <div class="mb-6" id="mapButtonContainer" style="display: none;">
+            <button id="openMapBtn" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-300">
+                Ver todos os pontos no mapa
+            </button>
         </div>
 
         <!-- Barra de pesquisa -->
         <div class="mb-6">
             <label for="searchInput" class="block text-gray-700 font-medium mb-2">Buscar ponto:</label>
-            <input type="text" id="searchInput" placeholder="Pesquisar por nome ou endereço..." class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300 ease-in-out">
+            <input type="text" id="searchInput" placeholder="Pesquisar por nome ou endereço..." class="w-full p-3 border border-gray-300 bg-white text-gray-900 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 transition duration-300 ease-in-out">
         </div>
 
         <!-- Área onde os pontos de visita serão exibidos -->
-        <div id="pointsContainer" class="grid gap-6">
-            <div class="text-center text-gray-500 py-10" id="initial-message">
+        <div id="pointsContainer" class="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-1 gap-6">
+            <div class="text-center text-gray-500 py-10 col-span-full" id="initial-message">
                 <p class="text-lg">Por favor, selecione um consultor para ver a lista de visitas.</p>
             </div>
         </div>
     </div>
 
-    <!-- Modal de Detalhes (inicialmente oculto) -->
-    <div id="detailsModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center hidden">
-        <div class="bg-white p-6 md:p-8 rounded-2xl shadow-xl w-11/12 md:max-w-xl relative modal">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4" id="modalTitle"></h2>
-            <div id="modalBody" class="text-gray-700 space-y-2">
-                <!-- Conteúdo do modal será injetado aqui -->
+    <!-- Modal de Mapa (inicialmente oculto) -->
+    <div id="mapModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center hidden">
+        <div class="bg-white text-gray-900 p-6 md:p-8 rounded-2xl shadow-xl w-11/12 md:max-w-4xl relative modal">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4" id="mapModalTitle"></h2>
+            <div id="map-container" class="mb-4 rounded-xl shadow-md">
+                <div id="map" class="rounded-xl"></div>
             </div>
-            <button id="closeModal" class="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-200 transition-colors duration-200">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <button id="closeMapModal" class="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-200 transition-colors duration-200">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
         </div>
     </div>
 
+    <!-- Modal de Detalhes (inicialmente oculto) -->
+    <div id="detailsModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center hidden">
+        <div class="bg-white text-gray-900 p-6 md:p-8 rounded-2xl shadow-xl w-11/12 md:max-w-xl relative modal">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4" id="modalTitle"></h2>
+            <div id="modalBody" class="text-gray-700 space-y-2">
+                <!-- Conteúdo do modal será injetado aqui -->
+            </div>
+            <button id="closeDetailsModal" class="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-200 transition-colors duration-200">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Mensagem de status (sucesso/erro) -->
+    <div id="statusMessage" class="fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg hidden"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" xintegrity="sha512-qjL7u72t27S7jJ20F54b5s4P3m5b7d8d21c3224b74d32e5414d7a8c3d98d28b1223e7f9a1c1a9c33f274a4f10a74d28b" crossorigin=""></script>
     <script>
         const consultorSelect = document.getElementById('consultorSelect');
         const searchInput = document.getElementById('searchInput');
@@ -74,38 +108,84 @@
         const detailsModal = document.getElementById('detailsModal');
         const modalTitle = document.getElementById('modalTitle');
         const modalBody = document.getElementById('modalBody');
-        const closeModalBtn = document.getElementById('closeModal');
+        const closeDetailsModalBtn = document.getElementById('closeDetailsModal');
+        const statusMessage = document.getElementById('statusMessage');
+        const mapModal = document.getElementById('mapModal');
+        const mapModalTitle = document.getElementById('mapModalTitle');
+        const closeMapModalBtn = document.getElementById('closeMapModal');
+        const openMapBtn = document.getElementById('openMapBtn');
+        const mapButtonContainer = document.getElementById('mapButtonContainer');
 
         let visitData = [];
         let currentConsultor = '';
+        let map = null;
+        
+        // Dados de fallback para o caso de o arquivo JSON não ser encontrado
+        const fallbackData = [
+            {
+                "name": "Japidinho - Avenida Getúlio Vargas",
+                "address": "Av. Pres. Getúlio Vargas, 1301 - Centro Norte, Cuiabá - MT, 78045-720, Brasil",
+                "lat": -15.591798899999995,
+                "long": -56.1046575,
+                "rating": "4.4",
+                "ratings place": "3442.0",
+                "CONSULTOR RESPONSÁVEL": "MARCOS EULER OLIVEIRA LAPENDA"
+            },
+            {
+                "name": "Ponto de Visita B",
+                "address": "Avenida Teste, 456",
+                "lat": -15.6033,
+                "long": -56.0827,
+                "rating": "3.9",
+                "ratings place": "50",
+                "CONSULTOR RESPONSÁVEL": "MARCOS EULER OLIVEIRA LAPENDA"
+            },
+            {
+                "name": "Ponto de Visita C",
+                "address": "Travessa Fictícia, 789",
+                "lat": -15.58,
+                "long": -56.11,
+                "rating": "4.8",
+                "ratings place": "250",
+                "CONSULTOR RESPONSÁVEL": "OUTRO CONSULTOR"
+            }
+        ];
+
+        // Função para exibir mensagens de status
+        function showStatus(message, isError = false) {
+            statusMessage.textContent = message;
+            statusMessage.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white ${isError ? 'bg-red-600' : 'bg-green-600'} transition-all duration-300`;
+            statusMessage.classList.remove('hidden');
+            setTimeout(() => {
+                statusMessage.classList.add('hidden');
+            }, 3000);
+        }
 
         // Função para carregar os dados do arquivo JSON
         async function loadData() {
             try {
                 const response = await fetch('dados.json');
                 if (!response.ok) {
-                    throw new Error('Erro ao carregar o arquivo data.json. Verifique se o arquivo existe.');
+                    throw new Error('Erro ao carregar o arquivo dados.json.');
                 }
                 visitData = await response.json();
-                populateConsultors();
             } catch (error) {
-                console.error("Falha ao carregar os dados:", error);
-                if (initialMessage) {
-                    initialMessage.innerHTML = `<p class="text-lg text-red-500">Erro ao carregar os dados: ${error.message}</p>`;
-                }
+                console.warn("Falha ao carregar dados.json, usando dados de fallback.", error);
+                visitData = fallbackData;
+                showStatus('Erro ao carregar os dados. Usando dados de exemplo.', true);
             }
+            populateConsultors();
         }
-
+        
         // Popula o dropdown com os nomes dos consultores
         function populateConsultors() {
-            const uniqueConsultores = [...new Set(visitData.map(item => item['CONSULTOR RESPONSÁVEL']))];
+            const uniqueConsultores = [...new Set(visitData.map(item => item['CONSULTOR RESPONSÁVEL']))].filter(Boolean);
+            consultorSelect.innerHTML = '<option value="" disabled selected>-- Selecione um consultor --</option>'; // Resetar e adicionar a opção padrão
             uniqueConsultores.forEach(consultor => {
-                if (consultor) {
-                    const option = document.createElement('option');
-                    option.value = consultor;
-                    option.textContent = consultor;
-                    consultorSelect.appendChild(option);
-                }
+                const option = document.createElement('option');
+                option.value = consultor;
+                option.textContent = consultor;
+                consultorSelect.appendChild(option);
             });
         }
 
@@ -114,8 +194,8 @@
             if (initialMessage) {
                 initialMessage.classList.add('hidden');
             }
+            mapButtonContainer.style.display = 'block';
 
-            // Filtra os dados com base no consultor selecionado e no termo de pesquisa
             const filteredPoints = visitData.filter(item => {
                 const consultorMatch = item['CONSULTOR RESPONSÁVEL'] === consultorName;
                 const searchMatch = searchTerm === '' || 
@@ -124,47 +204,52 @@
                 return consultorMatch && searchMatch;
             });
 
-            // Limpa o contêiner antes de adicionar novos pontos
             pointsContainer.innerHTML = '';
 
             if (filteredPoints.length === 0) {
-                pointsContainer.innerHTML = `<div class="text-center text-gray-500 py-10">
+                pointsContainer.innerHTML = `<div class="text-center text-gray-500 py-10 col-span-full">
                     <p class="text-lg">Nenhum ponto de visita encontrado com os filtros aplicados.</p>
                 </div>`;
                 return;
             }
 
-            // Cria e adiciona os cartões de visita ao contêiner
             filteredPoints.forEach(point => {
                 const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(point.address)}`;
                 
                 const card = document.createElement('div');
                 card.className = 'bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300';
                 card.innerHTML = `
-                    <div class="flex items-center space-x-4 mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M5.057 4.058a7.001 7.001 0 0110.886 0L17.5 7.15A1 1 0 0117 8.5H3a1 1 0 01-.5-1.35l2.557-3.092zM15 11a1 1 0 11-2 0 1 1 0 012 0zm-4 0a1 1 0 11-2 0 1 1 0 012 0zM7 11a1 1 0 11-2 0 1 1 0 012 0z" clip-rule="evenodd" />
-                            <path fill-rule="evenodd" d="M12 14a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM10 20a10 10 0 100-20 10 10 0 000 20z" clip-rule="evenodd" />
-                        </svg>
-                        <div>
-                            <h3 class="text-xl font-semibold text-gray-900">${point.name || 'Nome não disponível'}</h3>
-                            <p class="text-sm text-gray-500">${point.address || 'Endereço não disponível'}</p>
+                    <!-- Flex container principal para o conteúdo do card. Usamos flex-col para empilhar. -->
+                    <div class="flex flex-col items-start gap-4 mb-4">
+                        <div class="flex items-center space-x-4 w-full min-w-0">
+                            <!-- Ícone de localização do cabeçalho do cartão -->
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-cyan-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/>
+                            </svg>
+                            
+                            <!-- Contêiner flexível que permite que o texto se expanda e contraia. A classe min-w-0 evita que o conteúdo empurre o contêiner. -->
+                            <div class="flex-1 min-w-0">
+                                <!-- Adicionando 'truncate' para cortar textos longos com reticências (...) e garantir que o layout não quebre. -->
+                                <h3 class="text-xl font-semibold text-gray-900 truncate">${point.name || 'Nome não disponível'}</h3>
+                                <p class="text-sm text-gray-500 truncate">${point.address || 'Endereço não disponível'}</p>
+                            </div>
                         </div>
                     </div>
+                    
                     <p class="text-gray-700 mb-4 text-sm md:text-base">
-                        <span class="font-medium">Avaliação:</span> ${point.rating || 'N/A'} (${point['ratings place'] || 'N/A'} avaliações)
+                        <span class="font-medium text-gray-600">Avaliação:</span> ${point.rating || 'N/A'} (${point['ratings place'] || 'N/A'} avaliações)
                     </p>
-                    <div class="flex space-x-2">
-                        <a href="${mapsLink}" target="_blank" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-300">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M5.057 4.058a7.001 7.001 0 0110.886 0L17.5 7.15A1 1 0 0117 8.5H3a1 1 0 01-.5-1.35l2.557-3.092zM15 11a1 1 0 11-2 0 1 1 0 012 0zm-4 0a1 1 0 11-2 0 1 1 0 012 0zM7 11a1 1 0 11-2 0 1 1 0 012 0z" clip-rule="evenodd" />
-                                <path fill-rule="evenodd" d="M12 14a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM10 20a10 10 0 100-20 10 10 0 000 20z" clip-rule="evenodd" />
+                    
+                    <!-- Botões: flex-col no mobile e flex-row em telas maiores para evitar quebra. -->
+                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                        <a href="${mapsLink}" target="_blank" class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-500 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 transition-colors duration-300">
+                             <!-- Ícone de localização no botão -->
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/>
                             </svg>
                             Ver no mapa
                         </a>
-                        <button onclick='openModal(${JSON.stringify(point)})' class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-gray-500 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition-colors duration-300">
+                        <button onclick='openDetailsModal(${JSON.stringify(point)})' class="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-gray-900 bg-gray-300 hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition-colors duration-300">
                             Detalhes
                         </button>
                     </div>
@@ -173,37 +258,94 @@
             });
         }
         
-        // Função para abrir o modal de detalhes
-        function openModal(point) {
+        // Função para abrir o modal de detalhes (sem o mapa)
+        function openDetailsModal(point) {
             modalTitle.textContent = point.name || 'Detalhes do Ponto';
             modalBody.innerHTML = ''; // Limpa o conteúdo anterior
 
-            // Cria a lista de detalhes
             for (const key in point) {
-                if (Object.hasOwnProperty.call(point, key)) {
-                    // Ignora chaves vazias ou com 'NaN'
-                    if (point[key] && point[key] !== 'NaN') {
-                        const detailItem = document.createElement('div');
-                        detailItem.className = 'flex justify-between items-start border-b border-gray-200 py-2';
-                        detailItem.innerHTML = `<span class="font-medium text-gray-600">${key.replace(/_/g, ' ')}:</span><span class="text-right text-gray-800 ml-4">${point[key]}</span>`;
-                        modalBody.appendChild(detailItem);
-                    }
+                if (Object.hasOwnProperty.call(point, key) && point[key] && point[key] !== 'NaN') {
+                    const detailItem = document.createElement('div');
+                    detailItem.className = 'flex justify-between items-start border-b border-gray-300 py-2';
+                    detailItem.innerHTML = `<span class="font-medium text-gray-600">${key.replace(/_/g, ' ')}:</span><span class="text-right text-gray-800 ml-4">${point[key]}</span>`;
+                    modalBody.appendChild(detailItem);
                 }
             }
-
             detailsModal.classList.remove('hidden');
         }
 
+        // Função para abrir o modal com o mapa e os pontos do consultor
+        function openMapModal(consultorName) {
+            const filteredPoints = visitData.filter(item => item['CONSULTOR RESPONSÁVEL'] === consultorName);
+
+            mapModalTitle.textContent = `Pontos de Visita para ${consultorName}`;
+            
+            if (map) {
+                map.remove();
+            }
+
+            mapModal.classList.remove('hidden');
+
+            map = L.map('map').setView([-15.591798899999995, -56.1046575], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            const bounds = L.latLngBounds();
+
+            filteredPoints.forEach(point => {
+                if (point.lat && point.long) {
+                    const marker = L.marker([point.lat, point.long]).addTo(map);
+                    marker.bindPopup(`<b>${point.name}</b><br>${point.address}`).openPopup();
+                    bounds.extend([point.lat, point.long]);
+                }
+            });
+
+            navigator.geolocation.getCurrentPosition(position => {
+                const userLat = position.coords.latitude;
+                const userLong = position.coords.longitude;
+                const userMarker = L.marker([userLat, userLong], {
+                    icon: L.icon({
+                        iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                    })
+                }).addTo(map);
+                userMarker.bindPopup("Você está aqui!").openPopup();
+                bounds.extend([userLat, userLong]);
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }, error => {
+                console.error("Erro ao obter a geolocalização:", error);
+                if (filteredPoints.length > 0) {
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                } else {
+                    map.setZoom(1);
+                }
+            });
+        }
+
         // Função para fechar o modal de detalhes
-        function closeModal() {
+        function closeDetailsModal() {
             detailsModal.classList.add('hidden');
+        }
+
+        // Função para fechar o modal do mapa
+        function closeMapModal() {
+            mapModal.classList.add('hidden');
+            if (map) {
+                map.remove();
+                map = null;
+            }
         }
 
         // Event Listeners
         consultorSelect.addEventListener('change', (event) => {
             currentConsultor = event.target.value;
             if (currentConsultor) {
-                searchInput.value = ''; // Limpa a barra de busca ao trocar de consultor
+                searchInput.value = '';
                 displayPoints(currentConsultor);
             }
         });
@@ -213,17 +355,29 @@
                 displayPoints(currentConsultor, event.target.value);
             }
         });
-
-        closeModalBtn.addEventListener('click', closeModal);
-
-        // Fecha o modal ao clicar fora da área
-        detailsModal.addEventListener('click', (event) => {
-            if (event.target === detailsModal) {
-                closeModal();
+        
+        openMapBtn.addEventListener('click', () => {
+            if (currentConsultor) {
+                openMapModal(currentConsultor);
             }
         });
 
-        // Inicia o carregamento dos dados
+        closeDetailsModalBtn.addEventListener('click', closeDetailsModal);
+        closeMapModalBtn.addEventListener('click', closeMapModal);
+        
+        detailsModal.addEventListener('click', (event) => {
+            if (event.target === detailsModal) {
+                closeDetailsModal();
+            }
+        });
+
+        mapModal.addEventListener('click', (event) => {
+            if (event.target === mapModal) {
+                closeMapModal();
+            }
+        });
+        
+        // Carrega os dados quando a página for carregada
         loadData();
     </script>
 </body>
