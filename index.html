@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Visitas de Consultores</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        .modal {
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 md:p-8">
+
+    <div class="max-w-4xl mx-auto bg-white p-6 md:p-8 rounded-2xl shadow-xl">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-2">Painel de Visitas Comerciais</h1>
+            <p class="text-gray-600 text-lg">Selecione o seu nome para visualizar os pontos de visita designados.</p>
+        </header>
+
+        <!-- Dropdown para seleção do consultor -->
+        <div class="mb-6">
+            <label for="consultorSelect" class="block text-gray-700 font-medium mb-2">Consultor Responsável:</label>
+            <select id="consultorSelect" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300 ease-in-out">
+                <option value="" disabled selected>-- Selecione um consultor --</option>
+            </select>
+        </div>
+
+        <!-- Barra de pesquisa -->
+        <div class="mb-6">
+            <label for="searchInput" class="block text-gray-700 font-medium mb-2">Buscar ponto:</label>
+            <input type="text" id="searchInput" placeholder="Pesquisar por nome ou endereço..." class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300 ease-in-out">
+        </div>
+
+        <!-- Área onde os pontos de visita serão exibidos -->
+        <div id="pointsContainer" class="grid gap-6">
+            <div class="text-center text-gray-500 py-10" id="initial-message">
+                <p class="text-lg">Por favor, selecione um consultor para ver a lista de visitas.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Detalhes (inicialmente oculto) -->
+    <div id="detailsModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center hidden">
+        <div class="bg-white p-6 md:p-8 rounded-2xl shadow-xl w-11/12 md:max-w-xl relative modal">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4" id="modalTitle"></h2>
+            <div id="modalBody" class="text-gray-700 space-y-2">
+                <!-- Conteúdo do modal será injetado aqui -->
+            </div>
+            <button id="closeModal" class="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-200 transition-colors duration-200">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const consultorSelect = document.getElementById('consultorSelect');
+        const searchInput = document.getElementById('searchInput');
+        const pointsContainer = document.getElementById('pointsContainer');
+        const initialMessage = document.getElementById('initial-message');
+        const detailsModal = document.getElementById('detailsModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalBody = document.getElementById('modalBody');
+        const closeModalBtn = document.getElementById('closeModal');
+
+        let visitData = [];
+        let currentConsultor = '';
+
+        // Função para carregar os dados do arquivo JSON
+        async function loadData() {
+            try {
+                const response = await fetch('dados.json');
+                if (!response.ok) {
+                    throw new Error('Erro ao carregar o arquivo data.json. Verifique se o arquivo existe.');
+                }
+                visitData = await response.json();
+                populateConsultors();
+            } catch (error) {
+                console.error("Falha ao carregar os dados:", error);
+                if (initialMessage) {
+                    initialMessage.innerHTML = `<p class="text-lg text-red-500">Erro ao carregar os dados: ${error.message}</p>`;
+                }
+            }
+        }
+
+        // Popula o dropdown com os nomes dos consultores
+        function populateConsultors() {
+            const uniqueConsultores = [...new Set(visitData.map(item => item['CONSULTOR RESPONSÁVEL']))];
+            uniqueConsultores.forEach(consultor => {
+                if (consultor) {
+                    const option = document.createElement('option');
+                    option.value = consultor;
+                    option.textContent = consultor;
+                    consultorSelect.appendChild(option);
+                }
+            });
+        }
+
+        // Função para exibir os pontos do consultor, com filtro de busca
+        function displayPoints(consultorName, searchTerm = '') {
+            if (initialMessage) {
+                initialMessage.classList.add('hidden');
+            }
+
+            // Filtra os dados com base no consultor selecionado e no termo de pesquisa
+            const filteredPoints = visitData.filter(item => {
+                const consultorMatch = item['CONSULTOR RESPONSÁVEL'] === consultorName;
+                const searchMatch = searchTerm === '' || 
+                                    item.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                    item.address?.toLowerCase().includes(searchTerm.toLowerCase());
+                return consultorMatch && searchMatch;
+            });
+
+            // Limpa o contêiner antes de adicionar novos pontos
+            pointsContainer.innerHTML = '';
+
+            if (filteredPoints.length === 0) {
+                pointsContainer.innerHTML = `<div class="text-center text-gray-500 py-10">
+                    <p class="text-lg">Nenhum ponto de visita encontrado com os filtros aplicados.</p>
+                </div>`;
+                return;
+            }
+
+            // Cria e adiciona os cartões de visita ao contêiner
+            filteredPoints.forEach(point => {
+                const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(point.address)}`;
+                
+                const card = document.createElement('div');
+                card.className = 'bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300';
+                card.innerHTML = `
+                    <div class="flex items-center space-x-4 mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5.057 4.058a7.001 7.001 0 0110.886 0L17.5 7.15A1 1 0 0117 8.5H3a1 1 0 01-.5-1.35l2.557-3.092zM15 11a1 1 0 11-2 0 1 1 0 012 0zm-4 0a1 1 0 11-2 0 1 1 0 012 0zM7 11a1 1 0 11-2 0 1 1 0 012 0z" clip-rule="evenodd" />
+                            <path fill-rule="evenodd" d="M12 14a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM10 20a10 10 0 100-20 10 10 0 000 20z" clip-rule="evenodd" />
+                        </svg>
+                        <div>
+                            <h3 class="text-xl font-semibold text-gray-900">${point.name || 'Nome não disponível'}</h3>
+                            <p class="text-sm text-gray-500">${point.address || 'Endereço não disponível'}</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-700 mb-4 text-sm md:text-base">
+                        <span class="font-medium">Avaliação:</span> ${point.rating || 'N/A'} (${point['ratings place'] || 'N/A'} avaliações)
+                    </p>
+                    <div class="flex space-x-2">
+                        <a href="${mapsLink}" target="_blank" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-300">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5.057 4.058a7.001 7.001 0 0110.886 0L17.5 7.15A1 1 0 0117 8.5H3a1 1 0 01-.5-1.35l2.557-3.092zM15 11a1 1 0 11-2 0 1 1 0 012 0zm-4 0a1 1 0 11-2 0 1 1 0 012 0zM7 11a1 1 0 11-2 0 1 1 0 012 0z" clip-rule="evenodd" />
+                                <path fill-rule="evenodd" d="M12 14a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM10 20a10 10 0 100-20 10 10 0 000 20z" clip-rule="evenodd" />
+                            </svg>
+                            Ver no mapa
+                        </a>
+                        <button onclick='openModal(${JSON.stringify(point)})' class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-gray-500 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition-colors duration-300">
+                            Detalhes
+                        </button>
+                    </div>
+                `;
+                pointsContainer.appendChild(card);
+            });
+        }
+        
+        // Função para abrir o modal de detalhes
+        function openModal(point) {
+            modalTitle.textContent = point.name || 'Detalhes do Ponto';
+            modalBody.innerHTML = ''; // Limpa o conteúdo anterior
+
+            // Cria a lista de detalhes
+            for (const key in point) {
+                if (Object.hasOwnProperty.call(point, key)) {
+                    // Ignora chaves vazias ou com 'NaN'
+                    if (point[key] && point[key] !== 'NaN') {
+                        const detailItem = document.createElement('div');
+                        detailItem.className = 'flex justify-between items-start border-b border-gray-200 py-2';
+                        detailItem.innerHTML = `<span class="font-medium text-gray-600">${key.replace(/_/g, ' ')}:</span><span class="text-right text-gray-800 ml-4">${point[key]}</span>`;
+                        modalBody.appendChild(detailItem);
+                    }
+                }
+            }
+
+            detailsModal.classList.remove('hidden');
+        }
+
+        // Função para fechar o modal de detalhes
+        function closeModal() {
+            detailsModal.classList.add('hidden');
+        }
+
+        // Event Listeners
+        consultorSelect.addEventListener('change', (event) => {
+            currentConsultor = event.target.value;
+            if (currentConsultor) {
+                searchInput.value = ''; // Limpa a barra de busca ao trocar de consultor
+                displayPoints(currentConsultor);
+            }
+        });
+
+        searchInput.addEventListener('keyup', (event) => {
+            if (currentConsultor) {
+                displayPoints(currentConsultor, event.target.value);
+            }
+        });
+
+        closeModalBtn.addEventListener('click', closeModal);
+
+        // Fecha o modal ao clicar fora da área
+        detailsModal.addEventListener('click', (event) => {
+            if (event.target === detailsModal) {
+                closeModal();
+            }
+        });
+
+        // Inicia o carregamento dos dados
+        loadData();
+    </script>
+</body>
+</html>
